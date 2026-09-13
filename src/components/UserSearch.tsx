@@ -1,72 +1,116 @@
-import { useState} from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchGithubUser } from "../api/Github";
-import { UserCard } from "./USerCard";
+import { fetchGithubUser, searchGithubUser } from "../api/Github";
+import { UserCard } from "./UserCard";
 import { RecentSearches } from "./RecentSearches";
-import { useEffect } from "react";
+import { useDebounce } from "use-debounce";
+import { SuggestionDropdown } from "./SuggestionDropdown";
 
-function UserSearch(){
-    const [username, setUsername] = useState('');
-    const [submittedUsername, setSubmittedUsername] = useState('');
+function UserSearch() {
+  const [username, setUsername] = useState('');
+  const [submittedUsername, setSubmittedUsername] = useState('');
+  const [showSuggestion, setShowSuggestion] = useState(false);
 
-    const [recentUsers, setRecentUsers] = useState<string[]>(()=>{
-        const stored = localStorage.getItem('recentUsers');
-        return stored ? JSON.parse(stored) : [];
-    });
-    
-//  Using Tanstack Query
+  const [recentUsers, setRecentUsers] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('recentUsers');
+      return stored? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
+  const [debouncedUsername] = useDebounce(username, 300);
 
-const { data, isLoading, error } = useQuery({
-  queryKey: ['users', submittedUsername],
-  queryFn: () => fetchGithubUser(submittedUsername),
-  enabled:!!submittedUsername,
-})
+  // Fetch specific user
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['users', submittedUsername],
+    queryFn: () => fetchGithubUser(submittedUsername),
+    enabled:!!submittedUsername,
+  });
 
-// Add to recent ONLY when fetch is successful
-useEffect(() => {
-  if (data &&!error && submittedUsername) {
-    setRecentUsers((prev) => {
-      const updated = [submittedUsername,...prev.filter((u) => u!== submittedUsername)];
-      return updated.slice(0, 5);
-    });
-  }
-}, [data, error, submittedUsername]);
+  // Fetch suggestions
+  const { data: suggestions } = useQuery({
+    queryKey: ['github-user-suggestion', debouncedUsername],
+    queryFn: () => searchGithubUser(debouncedUsername),
+    enabled: debouncedUsername.trim().length > 1,
+  });
 
-const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
-  const trimmed = username.trim();
-  if (!trimmed) return;
-  setSubmittedUsername(trimmed);
-  // DON'T add to recent here
-};
+  // Add to recent ONLY when fetch is successful
+  useEffect(() => {
+    if (data &&!error && submittedUsername) {
+      setRecentUsers((prev) => {
+        const updated = [submittedUsername,...prev.filter((u) => u!== submittedUsername)];
+        return updated.slice(0, 5);
+      });
+    }
+  }, [data, error, submittedUsername]);
 
-useEffect(()=>{
-    localStorage.setItem('recentUsers', JSON.stringify(recentUsers)), [recentUsers];
-})
+  // Persist recent users - FIXED
+  useEffect(() => {
+    localStorage.setItem('recentUsers', JSON.stringify(recentUsers));
+  }, [recentUsers]);
 
-    return(
-        <>
-        <form onSubmit={handleSubmit} className="form" style={{ marginTop: '2rem' }}>
-            <input type="text" 
-            placeholder="Enter Github Username" 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = username.trim();
+    if (!trimmed) return;
+    setSubmittedUsername(trimmed);
+    setUsername("");
+    setShowSuggestion(false);
+  };
+
+  return (
+    <>
+      <form onSubmit={handleSubmit} className="form" style={{ marginTop: '2rem' }}>
+        <div className="dropdown-wrapper">
+          <input
+            type="text"
+            placeholder="Enter Github Username"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setUsername(val);
+              setShowSuggestion(val.trim().length > 1);
+            }}
+            onBlur={() => setTimeout(() => setShowSuggestion(false), 200)}
+            onFocus={() => username.trim().length > 1 && setShowSuggestion(true)}
+          />
+        </div>
+        <div style={{ marginTop: '-10px' }}>
+          {showSuggestion && suggestions?.length > 0 && (
+            <SuggestionDropdown
+              suggestions={suggestions}
+              show={showSuggestion}
+              onSelect={(selected: string) => {
+                setShowSuggestion(false);
+                setUsername(selected);
+                if (submittedUsername!== selected) {
+                  setSubmittedUsername(selected);
+                } else {
+                  refetch();
+                }
+              }}
             />
+          )}
+        </div>
 
-            <button type="submit">Search</button>
-        </form>
-        {isLoading && <p className="status">Loading...</p>}
-        {error && <p className="status error">{error.message}</p>}
-        {data && <UserCard user={data} />}
-        
-        {/* Recent Searches */}
-        {recentUsers.length > 0 && (
-            <RecentSearches recentUsers={recentUsers} setUsername={setUsername} setSubmittedUsername={setSubmittedUsername} />
-        )}
-        </>
-    )
+        <button type="submit">Search</button>
+      </form>
 
+      {isLoading && <p className="status">Loading...</p>}
+      {error && <p className="status error">{(error as Error).message}</p>}
+      {data && <UserCard user={data} />}
+
+      {recentUsers.length > 0 && (
+        <RecentSearches
+          recentUsers={recentUsers}
+          setUsername={setUsername}
+          setSubmittedUsername={setSubmittedUsername}
+        />
+      )}
+    </>
+  );
 }
 
 export default UserSearch;
