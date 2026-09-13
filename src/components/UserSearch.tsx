@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchGithubUser, searchGithubUser } from "../api/Github";
+import { fetchGithubUser, searchGithubUser } from "../api/github";
 import { UserCard } from "./UserCard";
 import { RecentSearches } from "./RecentSearches";
 import { useDebounce } from "use-debounce";
