@@ -50,6 +50,7 @@ The screenshots are available in:
 ```text
 public/screenshots
 ```
+![Repo Radar Screenshot](public/screenshots/repo-radar-dashboard.png)
 
 These screenshots can be used to demonstrate major UI screens such as:
 
