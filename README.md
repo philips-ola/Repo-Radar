@@ -6,7 +6,6 @@ The live project is deployed at:
 
 https://repo-radar-ola.vercel.app/
 
-Screenshots for the UI can be found in the repository’s `public/screenshots` directory.
 
 ## Why Repo Radar?
 
