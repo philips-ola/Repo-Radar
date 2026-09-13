@@ -90,6 +90,10 @@ function UserSearch() {
                 } else {
                   refetch();
                 }
+              setRecentUsers((prev) => {
+              const updated = [selected,...prev.filter((u) => u!== selected)];
+              return updated.slice(0, 5);
+            });
               }}
             />
           )}
